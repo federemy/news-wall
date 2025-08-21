@@ -277,10 +277,11 @@ body {
 
     <!-- Render de la nube + ticker -->
 <script type="module">
-  import setupWordCloud from '/src/scripts/wordcloud.ts';
+  // 1) Nube (bundle ok en prod)
+  import setupWordCloud from '../scripts/wordcloud.ts';
   setupWordCloud();
 
-  // ── Canales disponibles ────────────────────────────────────────────────────
+  // 2) Canales y layouts (definiciones y helpers)
   const CHANNELS = [
     { id:'tn',       name:'TN',       src:'https://www.youtube.com/embed/cb12KmMMDJA?rel=0&modestbranding=1' },
     { id:'canal26',  name:'Canal 26', src:'https://www.youtube.com/embed/BTaSHvWJW5A?rel=0&modestbranding=1' },
@@ -291,37 +292,23 @@ body {
     { id:'infobae',  name:'Infobae',  src:'https://www.youtube.com/embed/j-em8Y9hfoE?rel=0&modestbranding=1' },
     { id:'nettv',    name:'Net TV (HLS)', src:'https://rudo.video/live/nettv' },
   ];
-
-  // Vista -> índices visibles (saltando centro=4)
-  const VISIBLE_IDX = {
-    '9': [0,1,2,3,5,6,7,8],
-    '6': [0,1,2,3,5,6],
-    '4': [0,1,2,3],
-    '1': [0],
-  };
-
-  const DEFAULTS = {
-    '9': ['tn','canal26','ln+','c5n','cronica','america','infobae','nettv'],
-    '6': ['tn','canal26','ln+','c5n','cronica','america'],
-    '4': ['tn','canal26','ln+','c5n'],
-    '1': ['tn'],
-  };
+  const VISIBLE_IDX = { '9':[0,1,2,3,5,6,7,8], '6':[0,1,2,3,5,6], '4':[0,1,2,3], '1':[0] };
+  const DEFAULTS    = { '9':['tn','canal26','ln+','c5n','cronica','america','infobae','nettv'],
+                        '6':['tn','canal26','ln+','c5n','cronica','america'],
+                        '4':['tn','canal26','ln+','c5n'],
+                        '1':['tn'] };
 
   const mapKey = (mode) => `channelMap-${mode}`;
-  const loadMap = (mode) => JSON.parse(localStorage.getItem(mapKey(mode)) || 'null') || DEFAULTS[mode].slice();
+  const loadMap = (mode) => JSON.parse(localStorage.getItem(mapKey(mode))||'null') || DEFAULTS[mode].slice();
   const saveMap = (mode, map) => localStorage.setItem(mapKey(mode), JSON.stringify(map));
 
   function applyChannelMap(mode){
     const map = loadMap(mode);
     const indices = VISIBLE_IDX[mode];
-
     indices.forEach((tileIndex, pos) => {
-      const chId = map[pos];
-      const ch = CHANNELS.find(c => c.id === chId);
-      const tile = document.querySelector(`.tile[data-idx="${tileIndex}"]`);
-      const iframe = tile?.querySelector('iframe');
+      const ch = CHANNELS.find(c => c.id === map[pos]);
+      const iframe = document.querySelector(`.tile[data-idx="${tileIndex}"] iframe`);
       if (!iframe || !ch) return;
-      // ✅ usar ch.src para decidir si agrego ? o &
       const src = ch.src.includes('?')
         ? `${ch.src}&autoplay=1&mute=1&playsinline=1`
         : `${ch.src}?autoplay=1&mute=1&playsinline=1`;
@@ -333,49 +320,30 @@ body {
     const wrap = document.getElementById('slotSelectors');
     if (!wrap) return;
     wrap.innerHTML = '';
-
     const map = loadMap(mode);
     const indices = VISIBLE_IDX[mode];
 
     indices.forEach((tileIndex, pos) => {
-      const row = document.createElement('div');
-      row.className = 'slot-row';
-
-      const lab = document.createElement('label');
-      lab.textContent = `Pos ${pos+1}`;
-      lab.htmlFor = `slot-${pos}`;
-
-      const sel = document.createElement('select');
-      sel.id = `slot-${pos}`;
-
+      const row = document.createElement('div'); row.className = 'slot-row';
+      const lab = document.createElement('label'); lab.textContent = `Pos ${pos+1}`; lab.htmlFor = `slot-${pos}`;
+      const sel = document.createElement('select'); sel.id = `slot-${pos}`;
       CHANNELS.forEach(ch => {
-        const opt = document.createElement('option');
-        opt.value = ch.id; opt.textContent = ch.name;
-        sel.appendChild(opt);
+        const opt = document.createElement('option'); opt.value = ch.id; opt.textContent = ch.name; sel.appendChild(opt);
       });
       sel.value = map[pos] || DEFAULTS[mode][pos];
-
-      sel.addEventListener('change', () => {
-        map[pos] = sel.value;
-        saveMap(mode, map);
-        applyChannelMap(mode);
-      });
-
-      row.append(lab, sel);
-      wrap.appendChild(row);
+      sel.addEventListener('change', () => { map[pos]=sel.value; saveMap(mode,map); applyChannelMap(mode); });
+      row.append(lab, sel); wrap.appendChild(row);
     });
 
     const resetBtn = document.getElementById('resetMap');
-    if (resetBtn) {
-      resetBtn.onclick = () => {
-        saveMap(mode, DEFAULTS[mode].slice());
-        renderSelectorsFor(mode);
-        applyChannelMap(mode);
-      };
-    }
+    if (resetBtn) resetBtn.onclick = () => {
+      saveMap(mode, DEFAULTS[mode].slice());
+      renderSelectorsFor(mode);
+      applyChannelMap(mode);
+    };
   }
 
-  // ── Menú y layouts (9/6/4/1) ───────────────────────────────────────────────
+  // 3) Menú y cambio de layout (usa las funciones definidas arriba)
   const grid  = document.querySelector('.grid');
   const btn   = document.getElementById('menuBtn');
   const panel = document.getElementById('menuPanel');
@@ -392,23 +360,46 @@ body {
     applyChannelMap(mode);
   }
 
-  // restaurar modo al iniciar
+  // restaurar preferencia y enganchar eventos
   setMode(localStorage.getItem(KEY) || '9');
 
-  // abrir/cerrar panel
   const close = () => { panel.hidden = true; btn.setAttribute('aria-expanded','false'); window.removeEventListener('click', onOutside); };
   const onOutside = (e) => { if (!panel.contains(e.target) && e.target !== btn) close(); };
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const open = panel.hidden;
-    panel.hidden = !open;
+    const open = panel.hidden; panel.hidden = !open;
     btn.setAttribute('aria-expanded', String(open));
     if (open) window.addEventListener('click', onOutside);
   });
   panel.querySelectorAll('input[name="layout"]').forEach((el) => {
     el.addEventListener('change', (e) => { setMode(e.target.value); close(); });
   });
+
+  // 4) Drag vertical del ticker (mismo scope, sin globals)
+  (function(){
+    const KEY='tickerTopPx', GAP=10, ticker=document.getElementById('ticker');
+    if(!ticker) return;
+    const clamp=(y)=>{ const h=ticker.getBoundingClientRect().height; return Math.max(GAP, Math.min(y, window.innerHeight-h-GAP)); };
+    const getTop=()=>{ const t=parseFloat(getComputedStyle(ticker).top); return Number.isFinite(t)?t:GAP; };
+    const setTop=(y)=>{ ticker.style.top = `${clamp(y)}px`; };
+    const saved = Number(localStorage.getItem(KEY)); if(!Number.isNaN(saved)) setTop(saved); else setTop(getTop());
+    let drag=false, startY=0, startTop=0;
+    const down=(e)=>{ if(e.button!==undefined && e.button!==0) return; drag=true; ticker.dataset.dragging='true';
+      startY=(e.touches?e.touches[0].clientY:e.clientY); startTop=getTop();
+      document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+      document.addEventListener('touchmove', move, {passive:false}); document.addEventListener('touchend', up);
+      e.cancelable && e.preventDefault();
+    };
+    const move=(e)=>{ if(!drag) return; const y=e.touches?e.touches[0].clientY:e.clientY; setTop(startTop+(y-startY)); e.cancelable&&e.preventDefault(); };
+    const up =()=>{ if(!drag) return; drag=false; delete ticker.dataset.dragging; localStorage.setItem(KEY, String(clamp(getTop())));
+      document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
+      document.removeEventListener('touchmove', move); document.removeEventListener('touchend', up);
+    };
+    ticker.addEventListener('mousedown', down); ticker.addEventListener('touchstart', down, {passive:false});
+    window.addEventListener('resize', ()=> setTop(getTop()));
+  })();
 </script>
+
 
 <script>
 (() => {
