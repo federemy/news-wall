@@ -58,7 +58,7 @@ const tiles = [
         box-shadow: 0 4px 14px rgba(0,0,0,.35); cursor: grab; user-select:none; touch-action:none;
       }
       .ticker-full[data-dragging="true"] { cursor: grabbing; }
-      .marquee{ position:relative; overflow:hidden; height:28px; flex:1; }
+      .marquee{ position:relative; overflow:hidden; height:22px; flex:1; }
       .marquee__inner{
         position:absolute; white-space:nowrap;
         animation: slide var(--marquee-duration, 60s) linear infinite;
@@ -103,6 +103,8 @@ const tiles = [
       .btn-ghost:hover{ background:rgba(255,255,255,.07); }
 
       @media (max-width:640px){ .grid{ grid-template-columns:1fr; } }
+
+      .blyx {margin: 20px auto 0; width:100%; }
     </style>
   </head>
 
@@ -142,6 +144,8 @@ const tiles = [
         <div id="slotSelectors" class="slot-grid"></div>
         <button id="resetMap" class="btn-ghost">Restablecer</button>
       </div>
+      <div class="blyx">Hecho por
+<a href="https://www.blyxsolutions.com.ar/" target="_blank" rel="noopener noreferrer" style="text-decoration:none;"> <span style="color:#2DD4BF;">Blyx</span><span style="color:#FB7185;">Solutions</span> </a> </div>
     </div>
 
     <!-- Grilla -->
@@ -260,7 +264,7 @@ const tiles = [
 
         let weatherPrefix = '';
         try{
-          const wres = await fetch('/api/weather');
+          //const wres = await fetch('/api/weather');
           if (wres.ok){ const w = await wres.json(); weatherPrefix = `Clima Buenos Aires: ${Math.round(w.temp)}°C, ${w.desc}`; }
         }catch{}
 
