@@ -1,0 +1,539 @@
+---
+const title = 'Noticias en vivo — Mirá los canales principales de noticias en un solo lugar';
+
+// helper para concatenar params sin duplicar "?"
+const withParams = (url: string, params: string) =>
+  url.includes('?') ? `${url}&${params}` : `${url}?${params}`;
+
+// grilla 3×3: 8 videos + centro (i=4) es la nube
+const tiles = [
+  { label: 'TN',       src: 'https://www.youtube.com/embed/cb12KmMMDJA?rel=0&modestbranding=1' },
+  { label: 'Canal 26', src: 'https://www.youtube.com/embed/BTaSHvWJW5A?rel=0&modestbranding=1' },
+  { label: 'LN+',      src: 'https://www.youtube.com/embed/5f__Ls4_VYQ?rel=0&modestbranding=1' },
+  { label: 'C5N',      src: 'https://www.youtube.com/embed/jTDk5CswBVk?rel=0&modestbranding=1' },
+  { label: 'Centro',   src: null }, // nube
+  { label: 'Crónica',  src: 'https://www.youtube.com/embed/avly0uwZzOE?rel=0&modestbranding=1' },
+  { label: 'América',  src: 'https://www.youtube.com/embed/ArKbAx1K-2U?rel=0&modestbranding=1' },
+  { label: 'Infobae',  src: 'https://www.youtube.com/embed/j-em8Y9hfoE?rel=0&modestbranding=1' },
+  { label: 'Net TV',   src: 'https://rudo.video/live/nettv' }, // puede bloquear en iframe
+];
+---
+
+
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+
+    <!-- Favicon emoji 📰 -->
+    <link href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>" rel="icon" />
+
+    <style>
+      :root{
+        --bg:#0f172a; --tile:#111827; --br:14px; --gap:10px;
+        --violet:#7c3aed; --header-h:54px;
+      }
+      html,body{height:100%}
+      /* Ocupá exactamente 100vh y sin scroll */
+/* La página nunca supera el alto de pantalla */
+html,body { height: 100%; }
+body {
+  margin: 0;
+  overflow: hidden;          /* sin scroll */
+  min-height: 100vh;
+  max-height: 100vh;
+	background: #012f6f;
+  display: flex;
+  flex-direction: column;
+	font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
+}
+
+/* La grilla ocupa EXACTO 100vh, incluyendo su padding */
+.grid{
+  height: 100vh;
+  padding: var(--gap);       /* si querés padding */
+  box-sizing: border-box;    /* ← clave para que no sume alto */
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: minmax(140px, 1fr);
+  gap: var(--gap);
+}
+
+/* Centro: el SVG ocupa 100% del cuadro */
+.tile.center { position: relative; }
+#cloud{
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+}
+
+
+  /* Ticker full-width arriba (ocupa altura fija) */
+.ticker-full{
+  position: fixed;
+  left: var(--gap);
+  right: var(--gap);
+  top: var(--gap);            /* posición inicial */
+  z-index: 50;
+  margin: 0;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  background: var(--violet); color: #fff; border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  cursor: grab;
+  user-select: none;          /* no selecciona texto al arrastrar */
+  touch-action: none;         /* evita scroll mientras se arrastra (mobile) */
+}
+.ticker-full[data-dragging="true"] { cursor: grabbing; }
+      .marquee{position:relative; overflow:hidden; height:28px; flex:1}
+      .marquee__inner{position:absolute; white-space:nowrap; animation:slide 600s linear infinite}
+      .ticker-full:hover .marquee__inner{ animation-play-state: paused; }
+      @keyframes slide{from{transform:translateX(0)} to{transform:translateX(-50%)}}
+
+			/* Manija de arrastre (zona a agarrar) */
+.drag-handle{
+  width: 14px; height: 100%;
+  margin-right: 6px;
+  border-radius: 6px;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255,255,255,.55), rgba(255,255,255,.55) 2px,
+    rgba(255,255,255,.25) 2px, rgba(255,255,255,.25) 4px
+  );
+  cursor: grab;
+  touch-action: none; /* evita scroll mientras se arrastra en mobile */
+}
+.drag-handle:active { cursor: grabbing; }
+
+.move-icon{
+  display:flex; align-items:center; justify-content:center;
+  width:28px; height:28px; margin-right:8px;
+  border-radius:8px;
+  background: rgba(255,255,255,.14);
+  color:#fff;
+  cursor:grab; user-select:none; 
+}
+.ticker-full[data-dragging="true"] .move-icon{ cursor:grabbing; }
+.move-icon:hover{ background: rgba(255,255,255,.22); }
+
+
+      /* Grilla ocupa el resto del alto (sin exceder 100vh total) */
+
+      .tile{position:relative; background:var(--tile); border-radius:var(--br); overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,.35)}
+      iframe{position:absolute; inset:0; width:100%; height:100%; border:0; background:#000}
+
+      /* Centro: nube de palabras */
+      .center{
+        display:flex; align-items:center; justify-content:center;
+        background:linear-gradient(135deg, rgba(124,58,237,.9), rgba(14,165,233,.9));
+      }
+      .word{ fill:#fff; cursor:default; user-select:none; paint-order: stroke; stroke: rgba(0,0,0,.3); stroke-width:.8px; }
+      /* Responsive sin romper 100vh */
+      @media (max-width:640px){ .grid{ grid-template-columns:1fr; } }
+
+			/* Botón de menú */
+.menu-btn{
+  position: fixed;
+  top: var(--gap);
+  right: var(--gap);
+  z-index: 1200;
+  width: 42px; height: 42px;
+  display:flex; align-items:center; justify-content:center;
+  color:#fff;
+  background: rgba(17,24,39,.85);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+.menu-btn:focus-visible{ outline: 2px solid #a78bfa; outline-offset: 2px; }
+
+/* Panel del menú */
+.menu-panel{
+  position: fixed;
+  top: calc(var(--gap) + 48px);
+  right: var(--gap);
+  z-index: 1200;
+  width: 220px;
+  background: #111827;
+  color: #e5e7eb;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.35);
+}
+.menu-panel[hidden]{ display:none; }
+.menu-section strong{ display:block; font-size:.9rem; opacity:.9; margin-bottom:6px; }
+.menu-section label{ display:flex; gap:8px; align-items:center; padding:6px 4px; cursor:pointer; border-radius:8px; }
+.menu-section label:hover{ background: rgba(255,255,255,.06); }
+
+
+/* Modo por defecto (9): tu .grid ya define repeat(3,1fr) */
+
+.grid.mode-9 { grid-template-columns: repeat(3,1fr); grid-auto-rows: 1fr; }
+/* Mostrar todos */
+.grid.mode-9 .tile[data-idx]{ display:block; }
+
+/* 6 señales (3×2) → mostramos 0,1,2,3,5,6 (saltamos el centro 4) */
+.grid.mode-6 { grid-template-columns: repeat(3,1fr); grid-auto-rows: 1fr; }
+.grid.mode-6 .tile[data-idx]{ display:none; }
+.grid.mode-6 .tile[data-idx="0"],
+.grid.mode-6 .tile[data-idx="1"],
+.grid.mode-6 .tile[data-idx="2"],
+.grid.mode-6 .tile[data-idx="3"],
+.grid.mode-6 .tile[data-idx="5"],
+.grid.mode-6 .tile[data-idx="6"]{ display:block; }
+
+/* 4 señales (2×2) → mostramos 0,1,2,3 */
+.grid.mode-4 { grid-template-columns: repeat(2,1fr); grid-auto-rows: 1fr; }
+.grid.mode-4 .tile[data-idx]{ display:none; }
+.grid.mode-4 .tile[data-idx="0"],
+.grid.mode-4 .tile[data-idx="1"],
+.grid.mode-4 .tile[data-idx="2"],
+.grid.mode-4 .tile[data-idx="3"]{ display:block; }
+
+/* 1 señal (1×1) → mostramos 0 solamente */
+.grid.mode-1 { grid-template-columns: 1fr; grid-auto-rows: 1fr; }
+.grid.mode-1 .tile[data-idx]{ display:none; }
+.grid.mode-1 .tile[data-idx="0"]{ display:block; }
+
+.slot-grid{ display:grid; grid-template-columns:1fr; gap:6px; margin-top:6px; }
+.slot-grid .slot-row{ display:flex; gap:8px; align-items:center; }
+.slot-grid .slot-row label{ width:64px; font-size:.9rem; opacity:.85; }
+.slot-grid select{
+  flex:1; padding:6px 8px; border-radius:8px;
+  background:#0b1220; color:#e5e7eb; border:1px solid rgba(255,255,255,.15);
+}
+.btn-ghost{
+  margin-top:8px; width:100%; padding:6px 8px; border-radius:8px;
+  background:transparent; color:#e5e7eb; border:1px solid rgba(255,255,255,.2); cursor:pointer;
+}
+.btn-ghost:hover{ background:rgba(255,255,255,.07); }
+
+
+    </style>
+  </head>
+  <body>
+    <!-- Ticker superior: clima + titulares -->
+<!-- Ticker superior: ahora es fijo y arrastrable en Y -->
+<div class="ticker-full" id="ticker" role="region" aria-label="En vivo — titulares y clima">
+	<div class="move-icon" title="Arrastrá para mover" aria-hidden="true">
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+       stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- flecha arriba -->
+    <polyline points="7 8 12 3 17 8"></polyline>
+    <!-- línea central -->
+    <line x1="12" y1="3" x2="12" y2="21"></line>
+    <!-- flecha abajo -->
+    <polyline points="17 16 12 21 7 16"></polyline>
+  </svg>
+</div>
+  <b>En vivo</b>
+  <div class="marquee"><div id="headlineMarquee" class="marquee__inner">Cargando…</div></div>
+</div>
+<!-- Botón de menú (arriba a la derecha) -->
+<!-- Botón (hamburger) ya existente -->
+<button id="menuBtn" class="menu-btn" aria-label="Abrir menú" aria-expanded="false">
+  <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6"  x2="21" y2="6"></line>
+    <line x1="3" y1="12" x2="21" y2="12"></line>
+    <line x1="3" y1="18" x2="21" y2="18"></line>
+  </svg>
+</button>
+
+<!-- Panel -->
+<div id="menuPanel" class="menu-panel" hidden>
+  <div class="menu-section">
+    <strong>Vista</strong>
+    <label><input type="radio" name="layout" value="9" checked> 9 señales (3×3)</label>
+    <label><input type="radio" name="layout" value="6"> 6 señales (3×2)</label>
+    <label><input type="radio" name="layout" value="4"> 4 señales (2×2)</label>
+    <label><input type="radio" name="layout" value="1"> 1 señal (1×1)</label>
+  </div>
+	<div class="menu-section">
+  <strong>Canales por posición</strong>
+  <div id="slotSelectors" class="slot-grid"></div>
+  <button id="resetMap" class="btn-ghost">Restablecer</button>
+</div>
+</div>
+
+
+<main class="grid">
+  {
+    tiles.map((t, i) => (
+      i === 4
+        ? <section class="tile center" data-idx={i}>
+            <svg id="cloud" viewBox="0 0 800 480" preserveAspectRatio="xMidYMid meet"></svg>
+          </section>
+        : <section class="tile" data-idx={i}>
+            {t.src && <iframe src={withParams(t.src,'autoplay=1&mute=1&playsinline=1')} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe>}
+          </section>
+    ))
+  }
+</main>
+
+
+
+    <!-- Render de la nube + ticker -->
+<script type="module">
+  import setupWordCloud from '/src/scripts/wordcloud.ts';
+  setupWordCloud();
+
+  // ── Canales disponibles ────────────────────────────────────────────────────
+  const CHANNELS = [
+    { id:'tn',       name:'TN',       src:'https://www.youtube.com/embed/cb12KmMMDJA?rel=0&modestbranding=1' },
+    { id:'canal26',  name:'Canal 26', src:'https://www.youtube.com/embed/BTaSHvWJW5A?rel=0&modestbranding=1' },
+    { id:'ln+',      name:'LN+',      src:'https://www.youtube.com/embed/5f__Ls4_VYQ?rel=0&modestbranding=1' },
+    { id:'c5n',      name:'C5N',      src:'https://www.youtube.com/embed/jTDk5CswBVk?rel=0&modestbranding=1' },
+    { id:'cronica',  name:'Crónica',  src:'https://www.youtube.com/embed/avly0uwZzOE?rel=0&modestbranding=1' },
+    { id:'america',  name:'América',  src:'https://www.youtube.com/embed/ArKbAx1K-2U?rel=0&modestbranding=1' },
+    { id:'infobae',  name:'Infobae',  src:'https://www.youtube.com/embed/j-em8Y9hfoE?rel=0&modestbranding=1' },
+    { id:'nettv',    name:'Net TV (HLS)', src:'https://rudo.video/live/nettv' },
+  ];
+
+  // Vista -> índices visibles (saltando centro=4)
+  const VISIBLE_IDX = {
+    '9': [0,1,2,3,5,6,7,8],
+    '6': [0,1,2,3,5,6],
+    '4': [0,1,2,3],
+    '1': [0],
+  };
+
+  const DEFAULTS = {
+    '9': ['tn','canal26','ln+','c5n','cronica','america','infobae','nettv'],
+    '6': ['tn','canal26','ln+','c5n','cronica','america'],
+    '4': ['tn','canal26','ln+','c5n'],
+    '1': ['tn'],
+  };
+
+  const mapKey = (mode) => `channelMap-${mode}`;
+  const loadMap = (mode) => JSON.parse(localStorage.getItem(mapKey(mode)) || 'null') || DEFAULTS[mode].slice();
+  const saveMap = (mode, map) => localStorage.setItem(mapKey(mode), JSON.stringify(map));
+
+  function applyChannelMap(mode){
+    const map = loadMap(mode);
+    const indices = VISIBLE_IDX[mode];
+
+    indices.forEach((tileIndex, pos) => {
+      const chId = map[pos];
+      const ch = CHANNELS.find(c => c.id === chId);
+      const tile = document.querySelector(`.tile[data-idx="${tileIndex}"]`);
+      const iframe = tile?.querySelector('iframe');
+      if (!iframe || !ch) return;
+      // ✅ usar ch.src para decidir si agrego ? o &
+      const src = ch.src.includes('?')
+        ? `${ch.src}&autoplay=1&mute=1&playsinline=1`
+        : `${ch.src}?autoplay=1&mute=1&playsinline=1`;
+      if (iframe.src !== src) iframe.src = src;
+    });
+  }
+
+  function renderSelectorsFor(mode){
+    const wrap = document.getElementById('slotSelectors');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+
+    const map = loadMap(mode);
+    const indices = VISIBLE_IDX[mode];
+
+    indices.forEach((tileIndex, pos) => {
+      const row = document.createElement('div');
+      row.className = 'slot-row';
+
+      const lab = document.createElement('label');
+      lab.textContent = `Pos ${pos+1}`;
+      lab.htmlFor = `slot-${pos}`;
+
+      const sel = document.createElement('select');
+      sel.id = `slot-${pos}`;
+
+      CHANNELS.forEach(ch => {
+        const opt = document.createElement('option');
+        opt.value = ch.id; opt.textContent = ch.name;
+        sel.appendChild(opt);
+      });
+      sel.value = map[pos] || DEFAULTS[mode][pos];
+
+      sel.addEventListener('change', () => {
+        map[pos] = sel.value;
+        saveMap(mode, map);
+        applyChannelMap(mode);
+      });
+
+      row.append(lab, sel);
+      wrap.appendChild(row);
+    });
+
+    const resetBtn = document.getElementById('resetMap');
+    if (resetBtn) {
+      resetBtn.onclick = () => {
+        saveMap(mode, DEFAULTS[mode].slice());
+        renderSelectorsFor(mode);
+        applyChannelMap(mode);
+      };
+    }
+  }
+
+  // ── Menú y layouts (9/6/4/1) ───────────────────────────────────────────────
+  const grid  = document.querySelector('.grid');
+  const btn   = document.getElementById('menuBtn');
+  const panel = document.getElementById('menuPanel');
+  const KEY   = 'layoutMode';
+  const ALL   = ['mode-9','mode-6','mode-4','mode-1'];
+
+  function setMode(mode){
+    ALL.forEach(c => grid.classList.remove(c));
+    grid.classList.add(`mode-${mode}`);
+    localStorage.setItem(KEY, mode);
+    const r = panel.querySelector(`input[name="layout"][value="${mode}"]`);
+    if (r) r.checked = true;
+    renderSelectorsFor(mode);
+    applyChannelMap(mode);
+  }
+
+  // restaurar modo al iniciar
+  setMode(localStorage.getItem(KEY) || '9');
+
+  // abrir/cerrar panel
+  const close = () => { panel.hidden = true; btn.setAttribute('aria-expanded','false'); window.removeEventListener('click', onOutside); };
+  const onOutside = (e) => { if (!panel.contains(e.target) && e.target !== btn) close(); };
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = panel.hidden;
+    panel.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+    if (open) window.addEventListener('click', onOutside);
+  });
+  panel.querySelectorAll('input[name="layout"]').forEach((el) => {
+    el.addEventListener('change', (e) => { setMode(e.target.value); close(); });
+  });
+</script>
+
+<script>
+(() => {
+  const KEY = 'tickerTopPx';
+  const GAP = 10; // mismo valor que var(--gap)
+  const ticker = document.getElementById('ticker');
+  if (!ticker) return;
+
+  // Asegura que el ticker esté por encima de todo
+  ticker.style.zIndex = '1000';
+  ticker.style.position = 'fixed';
+  ticker.style.left = getComputedStyle(ticker).left || '10px';
+  ticker.style.right = getComputedStyle(ticker).right || '10px';
+  ticker.style.cursor = 'grab';
+  ticker.style.userSelect = 'none';
+  ticker.style.touchAction = 'none';
+
+  const clampTop = (y) => {
+    const h = ticker.getBoundingClientRect().height;
+    const maxY = window.innerHeight - h - GAP;
+    return Math.max(GAP, Math.min(y, maxY));
+  };
+  const getTop = () => {
+    const t = parseFloat(getComputedStyle(ticker).top);
+    return Number.isFinite(t) ? t : GAP;
+  };
+  const setTop = (y) => { ticker.style.top = `${clampTop(y)}px`; };
+
+  // Restaurar posición guardada
+  const saved = Number(localStorage.getItem(KEY));
+  if (!Number.isNaN(saved)) setTop(saved); else setTop(getTop());
+
+  let dragging = false;
+  let startY = 0;
+  let startTop = 0;
+
+  const onDown = (e) => {
+    // sólo botón izquierdo en desktop
+    if (e.button !== undefined && e.button !== 0) return;
+    dragging = true;
+    ticker.dataset.dragging = 'true';
+    startY = (e.touches ? e.touches[0].clientY : e.clientY);
+    startTop = getTop();
+    // listeners globales hasta soltar
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+    if (e.cancelable) e.preventDefault();
+  };
+
+  const onMove = (e) => {
+    if (!dragging) return;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const next = startTop + (clientY - startY);
+    setTop(next);
+    if (e.cancelable) e.preventDefault();
+  };
+
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    delete ticker.dataset.dragging;
+    const top = getTop();
+    localStorage.setItem(KEY, String(clampTop(top)));
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+  };
+
+  ticker.addEventListener('mousedown', onDown);
+  ticker.addEventListener('touchstart', onDown, { passive: false });
+
+  // Reajustar si cambia el alto de la ventana
+  window.addEventListener('resize', () => setTop(getTop()));
+})();
+
+// ── Menú y layouts (9/6/4/1) ────────────────────────────────────────────────
+(() => {
+  const grid = document.querySelector('.grid');
+  const btn  = document.getElementById('menuBtn');
+  const panel = document.getElementById('menuPanel');
+  const KEY = 'layoutMode'; // '9' | '6' | '4' | '1'
+  if (!grid || !btn || !panel) return;
+
+const ALL = ['mode-9','mode-6','mode-4','mode-1'];
+function setMode(mode){
+  const grid = document.querySelector('.grid');
+  ALL.forEach(c => grid.classList.remove(c));
+  grid.classList.add(`mode-${mode}`);
+
+  localStorage.setItem('layoutMode', mode);
+  const r = document.querySelector(`#menuPanel input[name="layout"][value="${mode}"]`);
+  if (r) r.checked = true;
+
+  // ⬇️ NUEVO: renderizar selects para esa vista + aplicar canales
+  renderSelectorsFor(mode);
+  applyChannelMap(mode);
+}
+
+// al iniciar:
+setMode(localStorage.getItem('layoutMode') || '9');
+
+
+  // Toggle panel
+  const close = () => { panel.hidden = true; btn.setAttribute('aria-expanded','false'); window.removeEventListener('click', onOutside); };
+  const onOutside = (e) => { if (!panel.contains(e.target) && e.target !== btn) close(); };
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = panel.hidden;
+    panel.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+    if (open) window.addEventListener('click', onOutside);
+  });
+
+  // Cambiar layout al elegir
+  panel.querySelectorAll('input[name="layout"]').forEach((el) => {
+    el.addEventListener('change', (e) => { setMode(e.target.value); close(); });
+  });
+})();
+
+
+</script>
+
+  </body>
+</html>

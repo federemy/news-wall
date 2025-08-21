@@ -1,0 +1,21 @@
+{
+  "name": "news-wall",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "astro": "^5.13.2",
+    "d3": "^7.9.0",
+    "d3-cloud": "^1.2.7",
+    "fast-xml-parser": "^5.2.5"
+  },
+  "devDependencies": {
+    "@types/d3": "^7.4.3",
+    "@types/d3-cloud": "^1.2.9"
+  }
+}
