@@ -36,12 +36,26 @@ const tiles = [
         background: #012f6f; display: flex; flex-direction: column;
         font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
       }
-      .grid{
-        height: 100vh; padding: var(--gap); box-sizing: border-box;
-        display: grid; grid-template-columns: repeat(3, 1fr);
-        grid-auto-rows: minmax(140px, 1fr); gap: var(--gap);
-      }
-      .tile{position:relative; background:var(--tile); border-radius:var(--br); overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.grid{
+  height: 100vh;
+  padding: var(--gap);
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: minmax(140px, 1fr);
+  gap: var(--gap);
+  /* ⇩ animá también el gap/padding cuando activás “Esquinas rectas” */
+  transition: gap .2s ease, padding .2s ease;
+}
+      .tile{
+  position:relative;
+  background:var(--tile);
+  border-radius:var(--br);
+  overflow:hidden;
+  box-shadow:0 4px 14px rgba(0,0,0,.35);
+  /* ⇩ transiciones suaves para el cambio de bordes */
+  transition: border-radius .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
       iframe{position:absolute; inset:0; width:100%; height:100%; border:0; background:#000}
 
       .tile.center { position: relative; display:flex; align-items:center; justify-content:center;
@@ -102,9 +116,25 @@ const tiles = [
       .btn-ghost{ margin-top:8px; width:100%; padding:6px 8px; border-radius:8px; background:transparent; color:#e5e7eb; border:1px solid rgba(255,255,255,.2); cursor:pointer; }
       .btn-ghost:hover{ background:rgba(255,255,255,.07); }
 
-      @media (max-width:640px){ .grid{ grid-template-columns:1fr; } }
+      /* switches */
+      .switch { display:flex; align-items:center; justify-content:space-between; padding:6px 4px; border-radius:8px; }
+      .switch:hover { background:rgba(255,255,255,.06); }
+      .switch input { appearance:none; -webkit-appearance:none; width:38px; height:22px; border-radius:999px; background:rgba(255,255,255,.25); position:relative; cursor:pointer; outline:none; transition:background .2s; }
+      .switch input::after{ content:''; position:absolute; top:3px; left:3px; width:16px; height:16px; background:#fff; border-radius:50%; transition:transform .2s; }
+      .switch input:checked{ background:var(--violet); }
+      .switch input:checked::after{ transform:translateX(16px); }
+
+/* ——— flags de UI ——— */
+body.no-chrome .tile,
+body.no-chrome .tile.center { border-radius:0; box-shadow:none; }
+
+body.no-chrome .grid{ gap:0; padding:0; }   /* muro sin separaciones */
+
+body.hide-ticker .ticker-full{ display:none; }
+
 
       .blyx {margin: 20px auto 0; width:100%; }
+      @media (max-width:640px){ .grid{ grid-template-columns:1fr; } }
     </style>
   </head>
 
@@ -144,15 +174,24 @@ const tiles = [
         <div id="slotSelectors" class="slot-grid"></div>
         <button id="resetMap" class="btn-ghost">Restablecer</button>
       </div>
-      <div class="blyx">Hecho por
-<a href="https://www.blyxsolutions.com.ar/" target="_blank" rel="noopener noreferrer" style="text-decoration:none;"> <span style="color:#2DD4BF;">Blyx</span>
-  <span style="color:#FB7185;">Solutions</span> </a>
-   - <a  style="color:#FB7185;text-decoration:none" href='https://cafecito.app/blyxsolutions' rel='noopener' target='_blank'>
-    ☕️ Invitame un cafecito
-</a>
+      <div class="menu-section" style="margin-top:5px">
+        <strong>Opciones de UI</strong>
+        <div class="switch">
+          <span>Esquinas rectas (sin bordes)</span>
+          <input id="swChrome" type="checkbox" />
+        </div>
+        <div class="switch">
+          <span>Ocultar barra de noticias</span>
+          <input id="swTicker" type="checkbox" />
+        </div>
+      </div>
 
-
-</div>
+      <div class="blyx" style="text-align:center">Hecho por
+        <a href="https://www.blyxsolutions.com.ar/" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
+          <span style="color:#2DD4BF;">Blyx</span><span style="color:#FB7185;">Solutions</span>
+        </a>
+        <br><a style="color:#FB7185;text-decoration:none" href='https://cafecito.app/blyxsolutions' rel='noopener' target='_blank'>☕️ Invitame un cafecito</a>
+      </div>
     </div>
 
     <!-- Grilla -->
@@ -175,12 +214,10 @@ const tiles = [
       /* ========= 0) Carga robusta de d3 y d3-cloud (ESM) ========= */
       let d3, cloud;
       try {
-        // 1er intento: jsDelivr +esm
         d3    = await import('https://cdn.jsdelivr.net/npm/d3@7/+esm');
         cloud = (await import('https://cdn.jsdelivr.net/npm/d3-cloud@1/+esm')).default;
       } catch (e1) {
         console.warn('Fallo jsDelivr +esm, probando esm.sh', e1);
-        // 2º intento: esm.sh (compila a ESM)
         d3    = await import('https://esm.sh/d3@7');
         cloud = (await import('https://esm.sh/d3-cloud@1')).default;
       }
@@ -271,7 +308,7 @@ const tiles = [
 
         let weatherPrefix = '';
         try{
-          //const wres = await fetch('/api/weather');
+          const wres = await fetch('/api/weather');
           if (wres.ok){ const w = await wres.json(); weatherPrefix = `Clima Buenos Aires: ${Math.round(w.temp)}°C, ${w.desc}`; }
         }catch{}
 
@@ -318,7 +355,7 @@ const tiles = [
         const map = loadMap(mode);
         VISIBLE_IDX[mode].forEach((tileIndex, pos) => {
           const row = document.createElement('div'); row.className='slot-row';
-          const lab = document.createElement('label'); lab.textContent=`Pos ${pos+1}`; lab.htmlFor=`slot-${pos}`;
+          const lab = document.createElement('label'); lab.textContent=`Posición ${pos+1} `; lab.htmlFor=`slot-${pos}`;
           const sel = document.createElement('select'); sel.id=`slot-${pos}`;
           CHANNELS.forEach(ch => { const opt=document.createElement('option'); opt.value=ch.id; opt.textContent=ch.name; sel.appendChild(opt); });
           sel.value = map[pos] || DEFAULTS[mode][pos];
@@ -335,6 +372,21 @@ const tiles = [
       const KEY_L = 'layoutMode';
       const ALL   = ['mode-9','mode-6','mode-4','mode-1'];
 
+      /* —— Flags de UI —— */
+      const UI_NO_CHROME  = 'uiNoChrome';
+      const UI_HIDE_TICKER= 'uiHideTicker';
+
+      function applyUIFlags(){
+        const noChrome  = JSON.parse(localStorage.getItem(UI_NO_CHROME)  || 'false');
+        const hideTicker= JSON.parse(localStorage.getItem(UI_HIDE_TICKER) || 'false');
+        document.body.classList.toggle('no-chrome',  noChrome);
+        document.body.classList.toggle('hide-ticker', hideTicker);
+        const chkChrome = document.getElementById('swChrome');
+        const chkTicker = document.getElementById('swTicker');
+        if (chkChrome) chkChrome.checked = noChrome;
+        if (chkTicker) chkTicker.checked = hideTicker;
+      }
+
       function setMode(mode){
         ALL.forEach(c=>grid.classList.remove(c));
         grid.classList.add(`mode-${mode}`);
@@ -342,12 +394,32 @@ const tiles = [
         const r = panel.querySelector(`input[name="layout"][value="${mode}"]`); if (r) r.checked = true;
         renderSelectorsFor(mode); applyChannelMap(mode);
       }
-      setMode(localStorage.getItem(KEY_L) || '9');
 
+      // restaurar layout + UI flags
+      setMode(localStorage.getItem(KEY_L) || '9');
+      applyUIFlags();
+
+      // abrir/cerrar menú
       const close=()=>{ panel.hidden=true; btn.setAttribute('aria-expanded','false'); window.removeEventListener('click', outside); };
       const outside=e=>{ if (!panel.contains(e.target) && e.target!==btn) close(); };
       btn.addEventListener('click', e=>{ e.stopPropagation(); const open=panel.hidden; panel.hidden=!open; btn.setAttribute('aria-expanded', String(open)); if (open) window.addEventListener('click', outside); });
       panel.querySelectorAll('input[name="layout"]').forEach(el => el.addEventListener('change', e=>{ setMode(e.target.value); close(); }));
+
+      // listeners de switches (ahora sí, con constantes definidas)
+      const swChrome = document.getElementById('swChrome');
+      const swTicker = document.getElementById('swTicker');
+      if (swChrome){
+        swChrome.addEventListener('change', ()=>{
+          localStorage.setItem(UI_NO_CHROME, String(swChrome.checked));
+          document.body.classList.toggle('no-chrome', swChrome.checked);
+        });
+      }
+      if (swTicker){
+        swTicker.addEventListener('change', ()=>{
+          localStorage.setItem(UI_HIDE_TICKER, String(swTicker.checked));
+          document.body.classList.toggle('hide-ticker', swTicker.checked);
+        });
+      }
 
       /* Drag vertical del ticker */
       (function(){
