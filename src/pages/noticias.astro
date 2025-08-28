@@ -1,0 +1,191 @@
+---
+/* (tu frontmatter si hace falta) */
+---
+
+<!-- Global SOLO si está #news-page-root en la página -->
+<style is:global>
+  @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Bitter:wght@400;700&display=swap');
+
+  /* Aplica solo en esta página gracias a :has() */
+  body:has(#news-page-root) {
+    font-family: 'Merriweather', serif;
+    background-color: #f8f8f8;
+    color: #333;
+    line-height: 1.7;
+    margin: 0;
+    padding: 20px;
+  }
+</style>
+
+<!-- Scopeado a este componente -->
+<style>
+  .container {
+    max-width: 1000px;
+    margin: 40px auto;
+    background: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+  h1 {
+    font-family: 'Bitter', serif;
+    text-align: center;
+    color: #222;
+    margin-bottom: 30px;
+    font-size: 2.5em;
+    letter-spacing: -1px;
+  }
+  #api-key-form { text-align: center; margin-bottom: 30px; }
+  #api-key-input {
+    width: 60%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1em;
+  }
+  #load-button {
+    padding: 12px 25px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.3s ease;
+  }
+  #load-button:hover { background-color: #45a049; }
+
+  #main-headline {
+    border-bottom: 2px solid #ccc;
+    padding-bottom: 25px;
+    margin-bottom: 35px;
+    text-align: center;
+  }
+  #main-headline h2 {
+    font-family: 'Bitter', serif;
+    font-size: 2.2em;
+    margin-bottom: 10px;
+    line-height: 1.3;
+  }
+  #main-headline a { text-decoration: none; color: #222; transition: color .2s; }
+  #main-headline a:hover { color: #007bff; }
+
+  #secondary-news-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    gap: 30px;
+  }
+  .secondary-news-item {
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    padding: 20px;
+    box-sizing: border-box;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+  }
+  .secondary-news-item h3 {
+    font-family: 'Bitter', serif;
+    font-size: 1.5em;
+    margin: 0 0 10px;
+    line-height: 1.4;
+  }
+  .secondary-news-item a { text-decoration: none; color: #222; transition: color .2s; }
+  .secondary-news-item a:hover { color: #007bff; }
+  .secondary-news-image { width: 100%; height: auto; border-radius: 4px; margin-bottom: 15px; display: block; }
+  .secondary-news-description { font-size: 1em; color: #555; margin-bottom: 15px; flex-grow: 1; }
+  .news-source { font-size: .9em; color: #777; margin-top: 10px; display: block; }
+  #loading { text-align: center; padding: 20px; font-style: italic; color: #777; }
+  #error-message { text-align: center; color: #dc3545; padding: 20px; font-weight: bold; }
+</style>
+
+<div id="news-page-root">
+  <div class="container">
+    <h1>Noticias de Argentina</h1>
+
+    <div id="api-key-form">
+      <label for="api-key-input">Ingresa tu API Key: 82a0e29b6bf44b1b8feb6d1e2f724af2</label>
+      <input type="text" id="api-key-input" placeholder="Tu API Key de NewsAPI.org" />
+      <button id="load-button">Cargar Noticias</button>
+    </div>
+
+    <div id="loading">Cargando noticias...</div>
+    <div id="error-message"></div>
+
+    <div id="main-headline"></div>
+    <div id="secondary-news-container"></div>
+  </div>
+</div>
+
+<script is:inline>
+  let articles = [];
+
+  function renderNews() {
+    const mainHeadlineContainer = document.getElementById('main-headline');
+    const secondaryNewsContainer = document.getElementById('secondary-news-container');
+
+    if (articles.length === 0) {
+      secondaryNewsContainer.innerHTML = '<p>No se encontraron noticias.</p>';
+      return;
+    }
+
+    const mainArticle = articles[0];
+    mainHeadlineContainer.innerHTML = `
+      <h2><a href="${mainArticle.url}" target="_blank" rel="noopener noreferrer">${mainArticle.title}</a></h2>
+    `;
+
+    let newsBlocksHTML = '';
+    for (let i = 1; i < articles.length; i++) {
+      const article = articles[i];
+      newsBlocksHTML += `
+        <div class="secondary-news-item">
+          ${article.urlToImage ? `<img src="${article.urlToImage}" alt="Imagen de la noticia" class="secondary-news-image">` : ''}
+          <h3><a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a></h3>
+          ${article.description ? `<p class="secondary-news-description">${article.description}</p>` : ''}
+          <p class="news-source">Fuente: ${article.source?.name ?? 'Desconocida'}</p>
+        </div>
+      `;
+    }
+    secondaryNewsContainer.innerHTML = newsBlocksHTML;
+  }
+
+  async function fetchNews() {
+    const apiKey = document.getElementById('api-key-input').value;
+    const loadingElement = document.getElementById('loading');
+    const errorElement = document.getElementById('error-message');
+
+    if (!apiKey) {
+      alert('Por favor, ingresa tu API Key.');
+      return;
+    }
+
+    document.getElementById('main-headline').innerHTML = '';
+    document.getElementById('secondary-news-container').innerHTML = '';
+    errorElement.style.display = 'none';
+    loadingElement.style.display = 'block';
+
+    const url = `https://newsapi.org/v2/everything?q=Argentina&sortBy=publishedAt&apiKey=${apiKey}`;
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      loadingElement.style.display = 'none';
+
+      if (data.status === 'ok') {
+        articles = data.articles || [];
+        renderNews();
+      } else {
+        errorElement.textContent = `Error de la API: ${data.message}`;
+        errorElement.style.display = 'block';
+      }
+    } catch (err) {
+      loadingElement.style.display = 'none';
+      errorElement.textContent = `Error al cargar las noticias: ${err.message}. Verifica tu conexión o tu API Key.`;
+      errorElement.style.display = 'block';
+      console.error(err);
+    }
+  }
+
+  document.getElementById('load-button').addEventListener('click', fetchNews);
+</script>

@@ -8,12 +8,12 @@ const withParams = (url: string, params: string) =>
 // grilla 3×3: 8 videos + centro (i=4) es la nube
 const tiles = [
   { label: 'TN',       src: 'https://www.youtube.com/embed/cb12KmMMDJA?rel=0&modestbranding=1' },
-  { label: 'Canal 26', src: 'https://www.youtube.com/embed/BTaSHvWJW5A?rel=0&modestbranding=1' },
+  { label: 'Canal 26', src: 'https://www.youtube.com/embed/OLMiTr2OUeU?rel=0&modestbranding=1' },
   { label: 'LN+',      src: 'https://www.youtube.com/embed/5f__Ls4_VYQ?rel=0&modestbranding=1' },
   { label: 'C5N',      src: 'https://www.youtube.com/embed/jTDk5CswBVk?rel=0&modestbranding=1' },
   { label: 'Centro',   src: null }, // nube
   { label: 'Crónica',  src: 'https://www.youtube.com/embed/avly0uwZzOE?rel=0&modestbranding=1' },
-  { label: 'América',  src: 'https://www.youtube.com/embed/ArKbAx1K-2U?rel=0&modestbranding=1' },
+  { label: 'América',  src: 'https://www.youtube.com/embed/ArKbAx1K-2U?rel=0&modestbranding=1' }, 
   { label: 'Infobae',  src: 'https://www.youtube.com/embed/j-em8Y9hfoE?rel=0&modestbranding=1' },
   { label: 'Net TV',   src: 'https://rudo.video/live/nettv' }, // puede bloquear en iframe
 ];
@@ -25,8 +25,11 @@ const tiles = [
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
 
-    <link href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>" rel="icon" />
-
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#0f172a">
     <style>
       :root{ --bg:#0f172a; --tile:#111827; --br:14px; --gap:10px; --violet:#7c3aed; }
       html,body { height: 100%; }
@@ -135,6 +138,41 @@ body.hide-ticker .ticker-full{ display:none; }
 
       .blyx {margin: 20px auto 0; width:100%; }
       @media (max-width:640px){ .grid{ grid-template-columns:1fr; } }
+
+      /* ——— Share button + panel ——— */
+.share-btn{
+  position: fixed; right: var(--gap); bottom: var(--gap);
+  z-index: 1300;
+  width: 48px; height: 48px; border-radius: 999px;
+  display:flex; align-items:center; justify-content:center;
+  color:#fff; background: linear-gradient(135deg, #7c3aed, #14b8a6);
+  border: 1px solid rgba(255,255,255,.15);
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .2s ease, opacity .2s ease;
+}
+.share-btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 28px rgba(0,0,0,.45); }
+
+.share-panel{
+  position: fixed; right: calc(var(--gap) + 56px); bottom: calc(var(--gap) + 4px);
+  z-index: 1300;
+  min-width: 220px;
+  background:#111827; color:#e5e7eb;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px; padding: 10px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.35);
+}
+.share-panel[hidden]{ display:none; }
+
+.share-list{ list-style:none; margin:0; padding:0; }
+.share-list li{ margin:0; }
+.share-link, .share-copy{
+  width:100%; display:flex; gap:10px; align-items:center;
+  padding:8px 10px; border-radius:8px; color:#e5e7eb; text-decoration:none;
+}
+.share-link:hover, .share-copy:hover{ background:rgba(255,255,255,.06); }
+.share-copy{ cursor:pointer; border:0; background:transparent; text-align:left; }
+
     </style>
   </head>
 
@@ -160,6 +198,31 @@ body.hide-ticker .ticker-full{ display:none; }
         <line x1="3" y1="18" x2="21" y2="18"></line>
       </svg>
     </button>
+
+    <!-- Botón compartir -->
+<button id="shareBtn" class="share-btn" aria-label="Compartir">
+  <!-- icono share -->
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="18" cy="5" r="3"></circle>
+    <circle cx="6" cy="12" r="3"></circle>
+    <circle cx="18" cy="19" r="3"></circle>
+    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+  </svg>
+</button>
+
+<!-- Panel compartir (fallback para navegadores sin Web Share API) -->
+<div id="sharePanel" class="share-panel" hidden>
+  <ul class="share-list">
+    <li><a id="share-whatsapp" class="share-link" target="_blank" rel="noopener">🟢 WhatsApp</a></li>
+    <li><a id="share-telegram" class="share-link" target="_blank" rel="noopener">🔵 Telegram</a></li>
+    <li><a id="share-x"        class="share-link" target="_blank" rel="noopener">✖️ X / Twitter</a></li>
+    <li><a id="share-fb"       class="share-link" target="_blank" rel="noopener">📘 Facebook</a></li>
+    <li><a id="share-email"    class="share-link">✉️ Email</a></li>
+    <li><button id="copyLink"  class="share-copy">📋 Copiar enlace</button></li>
+  </ul>
+</div>
+
 
     <div id="menuPanel" class="menu-panel" hidden>
       <div class="menu-section">
@@ -447,6 +510,66 @@ body.hide-ticker .ticker-full{ display:none; }
       /* Render inicial + refresh cada 5 min */
       loadDataAndRender();
       setInterval(loadDataAndRender, 5*60*1000);
+
+
+
+      // —— Compartir —— //
+const shareBtn   = document.getElementById('shareBtn');
+const sharePanel = document.getElementById('sharePanel');
+
+function getShareData(){
+  const url   = location.href;
+  const title = document.title;
+  const text  = 'Mirá los principales canales de noticias en vivo!';
+  return { title, text, url };
+}
+
+function fillFallbackLinks({title, text, url}){
+  const u = encodeURIComponent(url);
+  const t = encodeURIComponent(text || title);
+  const isMobileWA = /Android|iPhone|iPad/i.test(navigator.userAgent);
+
+  const wa = document.getElementById('share-whatsapp');
+  wa.href  = isMobileWA
+    ? `https://wa.me/?text=${t}%20${u}`
+    : `https://web.whatsapp.com/send?text=${t}%20${u}`;
+
+  document.getElementById('share-telegram').href = `https://t.me/share/url?url=${u}&text=${t}`;
+  document.getElementById('share-x').href        = `https://twitter.com/intent/tweet?url=${u}&text=${t}`;
+  document.getElementById('share-fb').href       = `https://www.facebook.com/sharer/sharer.php?u=${u}`;
+  document.getElementById('share-email').href    = `mailto:?subject=${encodeURIComponent(title)}&body=${t}%0A${u}`;
+}
+
+shareBtn.addEventListener('click', async (e)=>{
+  e.stopPropagation();
+  const data = getShareData();
+
+  if (navigator.share){
+    try { await navigator.share(data); return; }
+    catch { /* cancelado por usuario: mostramos fallback */ }
+  }
+  fillFallbackLinks(data);
+  sharePanel.hidden = !sharePanel.hidden;
+});
+
+// copiar enlace
+document.getElementById('copyLink')?.addEventListener('click', async ()=>{
+  try{
+    await navigator.clipboard.writeText(location.href);
+    const btn = document.getElementById('copyLink');
+    const old = btn.textContent;
+    btn.textContent = '¡Copiado!';
+    setTimeout(()=>btn.textContent = old, 1200);
+  }catch{}
+});
+
+// cerrar al click por fuera o con ESC
+function closeShare(){ sharePanel.hidden = true; }
+window.addEventListener('click', (ev)=>{
+  if (!sharePanel.hidden && !sharePanel.contains(ev.target) && ev.target !== shareBtn) closeShare();
+});
+window.addEventListener('keydown', (ev)=>{ if(ev.key==='Escape') closeShare(); });
+
     </script>
   </body>
 </html>
